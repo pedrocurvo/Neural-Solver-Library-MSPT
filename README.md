@@ -2,6 +2,8 @@
 
 NeuralSolver is an open-source library for deep learning researchers, especially for neural PDE solvers.
 
+:triangular_flag_on_post:**News** (2025.10) We propose [FlashBias (NeurIPS 2025)](https://github.com/thuml/FlashBias) to support fast computation of scientific models. With FlashBias, it is easy to introduce a learnable spatial distance bias into the Transformer for better geometry learning. Check the [Transformer_Spatial_Bias](https://github.com/thuml/Neural-Solver-Library/blob/main/models/Transformer_Spatial_Bias.py) model for details. Welcome to try FlashBias and implement your own scientific bias.
+
 :triangular_flag_on_post:**News** (2025.03) We release the NeuralSolver as a simple and neat code base for benchmarking neural PDE solvers, which is extended from our previous GitHub repository [Transolver](https://github.com/thuml/Transolver).
 
 ## Features

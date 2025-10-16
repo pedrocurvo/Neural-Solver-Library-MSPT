@@ -1,5 +1,5 @@
 from models import Transolver, LSM, FNO, U_Net, Transformer, Factformer, Swin_Transformer, Galerkin_Transformer, GNOT, \
-    U_NO, U_FNO, F_FNO, ONO, MWT, GraphSAGE, Graph_UNet, PointNet
+    U_NO, U_FNO, F_FNO, ONO, MWT, GraphSAGE, Graph_UNet, PointNet, Transformer_Spatial_Bias
 
 
 def get_model(args):
@@ -17,6 +17,7 @@ def get_model(args):
         'Swin_Transformer': Swin_Transformer,
         'Factformer': Factformer,
         'Transformer': Transformer,
+        'Transformer_Spatial_Bias': Transformer_Spatial_Bias,
         'U_Net': U_Net,
         'FNO': FNO,
         'Transolver': Transolver,
