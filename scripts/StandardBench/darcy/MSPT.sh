@@ -11,17 +11,29 @@ python run.py \
 --space_dim 2 \
 --fun_dim 1 \
 --out_dim 1 \
---model Transolver \
---n_hidden 128 \
+--model MSPT \
+--n_hidden 256 \
 --n_heads 8 \
 --n_layers 8 \
 --mlp_ratio 2 \
---slice_num 64 \
 --unified_pos 1 \
 --ref 8 \
---batch-size 4 \
+--mspt_V 600 \
+--mspt_Q 1 \
+--mspt_pool mean \
+--mspt_chunking balltree \
+--batch-size 1 \
 --epochs 500 \
+--optimizer Lion \
+--weight_decay 5e-2 \
+--lion_beta1 0.9 \
+--lion_beta2 0.99 \
 --eval 0 \
+--amp 1 \
+--scheduler WarmupCosine \
+--lr 5e-5 \
+--min_lr 1e-6 \
+--warmup_fraction 0.05 \
 --vis_cbar_min -0.0003 \
 --vis_cbar_max 0.0003 \
---save_name darcy_Transolver
+--save_name darcy_MSPT

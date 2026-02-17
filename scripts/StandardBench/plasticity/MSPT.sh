@@ -11,16 +11,19 @@ python run.py \
 --space_dim 2 \
 --fun_dim 1 \
 --out_dim 4 \
---model Transolver \
+--model MSPT \
 --n_hidden 128 \
 --n_heads 8 \
 --n_layers 8 \
---slice_num 64 \
+--mlp_ratio 2 \
 --unified_pos 0 \
 --ref 8 \
+--mspt_V 32 \
+--mspt_Q 1 \
+--mspt_pool mean \
 --batch-size 8 \
 --epochs 500 \
 --eval 0 \
 --vis_cbar_min -0.08 \
 --vis_cbar_max 0.08 \
---save_name plas_Transolver
+--save_name plas_MSPT

@@ -3,22 +3,30 @@ python run.py \
 --data_path /data \
 --loader elas \
 --geotype unstructured \
---scheduler CosineAnnealingLR \
+--scheduler WarmupCosine \
+--lr 5e-5 \
+--min_lr 1e-6 \
 --space_dim 2 \
 --fun_dim 0 \
 --out_dim 1 \
 --normalize 1 \
---model Transolver \
+--model MSPT \
 --n_hidden 128 \
 --n_heads 8 \
 --n_layers 8 \
 --mlp_ratio 2 \
---slice_num 64 \
 --unified_pos 0 \
 --ref 8 \
+--mspt_V 32 \
+--mspt_Q 1 \
+--mspt_pool mean \
 --batch-size 1 \
 --epochs 500 \
+--optimizer Lion \
+--weight_decay 5e-2 \
+--lion_beta1 0.9 \
+--lion_beta2 0.99 \
 --eval 0 \
---vis_cbar_min -2.5 \
---vis_cbar_max 2.5 \
---save_name elas_Transolver
+--vis_cbar_min -3 \
+--vis_cbar_max 3 \
+--save_name elas_MSPT

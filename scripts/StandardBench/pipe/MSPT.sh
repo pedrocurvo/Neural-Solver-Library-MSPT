@@ -6,18 +6,20 @@ python run.py \
 --space_dim 2 \
 --fun_dim 2 \
 --out_dim 1 \
---model Transolver \
+--model MSPT \
 --n_hidden 128 \
 --n_heads 8 \
 --n_layers 8 \
 --mlp_ratio 2 \
---slice_num 64 \
 --unified_pos 0 \
 --ref 8 \
+--mspt_V 64 \
+--mspt_Q 1 \
+--mspt_pool mean \
 --batch-size 4 \
 --epochs 500 \
 --eval 0 \
 --normalize 1 \
 --vis_cbar_min -0.0025 \
 --vis_cbar_max 0.0025 \
---save_name pipe_Transolver
+--save_name pipe_MSPT
