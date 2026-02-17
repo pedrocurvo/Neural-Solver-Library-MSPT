@@ -5,8 +5,7 @@ import numpy as np
 import torch
 import h5py
 import scipy.io as scio
-from data_provider.shapenet_utils import get_datalist
-from data_provider.shapenet_utils import GraphDataset
+from data_provider.shapenet_utils import get_datalist, GraphDataset
 from torch.utils.data import Dataset
 from utils.normalizer import UnitTransformer, UnitGaussianNormalizer
 
@@ -378,9 +377,9 @@ class darcy(object):
         pos_test = pos.repeat(self.ntest, 1, 1)
 
         train_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(pos_train, x_train, y_train),
-                                                   batch_size=self.batch_size, shuffle=True)
+                                                   batch_size=self.batch_size, shuffle=True, num_workers=8, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(pos_test, x_test, y_test),
-                                                  batch_size=self.batch_size, shuffle=False)
+                                                  batch_size=self.batch_size, shuffle=False, num_workers=8, pin_memory=True)
         print("Dataloading is over.")
         return train_loader, test_loader, [s1, s2]
 
@@ -450,9 +449,9 @@ class ns(object):
         pos_test = pos.repeat(self.ntest, 1, 1)
 
         train_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(pos_train, train_a, train_u),
-                                                   batch_size=self.batch_size, shuffle=True)
+                                                   batch_size=self.batch_size, shuffle=True, num_workers=8, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(torch.utils.data.TensorDataset(pos_test, test_a, test_u),
-                                                  batch_size=self.batch_size, shuffle=False)
+                                                  batch_size=self.batch_size, shuffle=False, num_workers=8, pin_memory=True)
 
         print("Dataloading is over.")
         return train_loader, test_loader, [s1, s2]
@@ -589,6 +588,7 @@ class car_design(object):
         self.file_path = args.data_path
         self.radius = args.radius
         self.test_fold_id = 0
+        self.args = args
 
     def get_samples(self, obj_path):
         folds = [f'param{i}' for i in range(9)]
@@ -627,9 +627,26 @@ class car_design(object):
         print("load data finish")
         return train_dataset, val_dataset, coef_norm, vallst
 
+    @staticmethod
+    def _collate_single(batch):
+        if not batch:
+            raise ValueError("Received an empty batch from the DataLoader.")
+        return batch[0]
+
     def get_loader(self):
         train_data, val_data, coef_norm, vallst = self.load_train_val_fold()
-        train_loader = GraphDataset(train_data, use_cfd_mesh=False, r=self.radius, coef_norm=coef_norm)
+        self.coef_norm = coef_norm
+        train_ds = GraphDataset(train_data, use_cfd_mesh=False, r=self.radius, coef_norm=coef_norm)
+        collate_fn = car_design._collate_single
+        train_loader = torch.utils.data.DataLoader(
+            train_ds,
+            batch_size=1,
+            shuffle=True,
+            num_workers=8,
+            pin_memory=True,
+            collate_fn=collate_fn,
+            persistent_workers=8 > 0,
+        )
         test_loader = GraphDataset(val_data, use_cfd_mesh=False, r=self.radius, coef_norm=coef_norm, valid_list=vallst)
         return train_loader, test_loader, [train_data[0].x.shape[0]]
 
@@ -756,4 +773,3 @@ class cfd3d(object):
         )
         
         return train_loader, test_loader, [s1, s2, s3]
-    
