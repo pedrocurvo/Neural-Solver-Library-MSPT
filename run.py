@@ -75,16 +75,16 @@ parser.add_argument('--modes', type=int, default=12, help='number of basis funct
 parser.add_argument('--psi_dim', type=int, default=8, help='number of psi_dim for ONO')
 parser.add_argument('--attn_type', type=str, default='nystrom',help='attn_type for ONO, select from nystrom, linear, selfAttention')
 parser.add_argument('--mwt_k', type=int, default=3,help='number of wavelet basis functions for MWT')
-parser.add_argument('--patchouli_V', type=int, default=32, help='number of chunks for Patchouli attention')
-parser.add_argument('--patchouli_Q', type=int, default=1, help='number of pooled tokens per chunk for Patchouli')
-parser.add_argument('--patchouli_pool', type=str, default='mean', choices=['mean', 'max', 'linear'],
-                    help='pooling strategy for Patchouli global tokens')
-parser.add_argument('--patchouli_chunking', type=str, default='linear', choices=['linear', 'balltree'],
-                    help='Patchouli point chunking strategy')
-parser.add_argument('--patchouli_use_rope', type=int, default=0, help='Enable rotary positional embeddings inside Patchouli attention')
-parser.add_argument('--patchouli_rope_base', type=float, default=10000.0, help='Base for Patchouli rotary embedding frequencies')
-parser.add_argument('--patchouli_use_flash_attn', type=int, default=0, help='Enable FlashAttention kernels inside Patchouli blocks')
-parser.add_argument('--patchouli_distribute_blocks', type=int, default=0, help='Distribute Patchouli blocks across multiple GPUs (experimental)')
+parser.add_argument('--mspt_V', type=int, default=32, help='number of chunks for MSPT attention')
+parser.add_argument('--mspt_Q', type=int, default=1, help='number of pooled tokens per chunk for MSPT')
+parser.add_argument('--mspt_pool', type=str, default='mean', choices=['mean', 'max', 'linear'],
+                    help='pooling strategy for MSPT global tokens')
+parser.add_argument('--mspt_chunking', type=str, default='linear', choices=['linear', 'balltree'],
+                    help='MSPT point chunking strategy')
+parser.add_argument('--mspt_use_rope', type=int, default=0, help='Enable rotary positional embeddings inside MSPT attention')
+parser.add_argument('--mspt_rope_base', type=float, default=10000.0, help='Base for MSPT rotary embedding frequencies')
+parser.add_argument('--mspt_use_flash_attn', type=int, default=0, help='Enable FlashAttention kernels inside MSPT blocks')
+parser.add_argument('--mspt_distribute_blocks', type=int, default=0, help='Distribute MSPT blocks across multiple GPUs (experimental)')
 parser.add_argument('--erwin_c_hidden', type=str, default='64,128,256,512,1024',
                     help='Comma-separated hidden dimensions (encoder + bottleneck) for Erwin')
 parser.add_argument('--erwin_ball_sizes', type=str, default='64,64,64,64,64',
