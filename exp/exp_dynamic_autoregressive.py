@@ -23,7 +23,8 @@ class Exp_Dynamic_Autoregressive(Exp_Basic):
                 for t in range(self.args.T_out):
                     if self.args.fun_dim == 0:
                         fx = None
-                    im = self.model(x, fx=fx)
+                    with self._maybe_autocast():
+                        im = self.model(x, fx=fx)
                     if t == 0:
                         pred = im
                     else:
@@ -50,6 +51,8 @@ class Exp_Dynamic_Autoregressive(Exp_Basic):
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args.epochs)
         elif self.args.scheduler == 'StepLR':
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.args.step_size, gamma=self.args.gamma)
+        else:
+            scheduler = None
 
         myloss = L2Loss(size_average=False)
 
@@ -65,7 +68,8 @@ class Exp_Dynamic_Autoregressive(Exp_Basic):
                     y = yy[..., self.args.out_dim * t:self.args.out_dim * (t + 1)]
                     if self.args.fun_dim == 0:
                         fx = None
-                    im = self.model(x, fx=fx)
+                    with self._maybe_autocast():
+                        im = self.model(x, fx=fx)
                     loss += myloss(im.reshape(x.shape[0], -1), y.reshape(x.shape[0], -1))
                     if t == 0:
                         pred = im
@@ -79,16 +83,13 @@ class Exp_Dynamic_Autoregressive(Exp_Basic):
 
                 train_l2_step += loss.item()
                 train_l2_full += myloss(pred.reshape(x.shape[0], -1), yy.reshape(x.shape[0], -1)).item()
-                optimizer.zero_grad()
-                loss.backward()
+                self._zero_grad(optimizer)
+                self._backward(loss, optimizer)
+                self._optimizer_step(optimizer)
 
-                if self.args.max_grad_norm is not None:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
-                optimizer.step()
-
-                if self.args.scheduler == 'OneCycleLR':
+                if self.args.scheduler == 'OneCycleLR' and scheduler is not None:
                     scheduler.step()
-            if self.args.scheduler == 'CosineAnnealingLR' or self.args.scheduler == 'StepLR':
+            if self.args.scheduler in ['CosineAnnealingLR', 'StepLR'] and scheduler is not None:
                 scheduler.step()
 
             train_loss_step = train_l2_step / (self.args.ntrain * float(self.args.T_out))
@@ -98,6 +99,12 @@ class Exp_Dynamic_Autoregressive(Exp_Basic):
 
             test_loss_full = self.vali()
             print("Epoch {} Test loss full : {:.5f}".format(ep, test_loss_full))
+
+            lr = optimizer.param_groups[0]['lr']
+            self.log_metrics({'train/loss_step': train_loss_step,
+                              'train/loss_full': train_loss_full,
+                              'val/loss_full': test_loss_full,
+                              'train/lr': lr})
 
             if ep % 100 == 0:
                 if not os.path.exists('./checkpoints'):
@@ -126,7 +133,8 @@ class Exp_Dynamic_Autoregressive(Exp_Basic):
                 for t in range(self.args.T_out):
                     if self.args.fun_dim == 0:
                         fx = None
-                    im = self.model(x, fx=fx)
+                    with self._maybe_autocast():
+                        im = self.model(x, fx=fx)
                     fx = torch.cat((fx[..., self.args.out_dim:], im), dim=-1)
                     if t == 0:
                         pred = im
@@ -144,3 +152,5 @@ class Exp_Dynamic_Autoregressive(Exp_Basic):
 
         rel_err /= self.args.ntest
         print("rel_err:{}".format(rel_err))
+        self.log_metrics({'test/rel_err': rel_err})
+        self.finish_logging()

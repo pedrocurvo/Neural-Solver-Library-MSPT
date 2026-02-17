@@ -85,26 +85,6 @@ parser.add_argument('--patchouli_use_rope', type=int, default=0, help='Enable ro
 parser.add_argument('--patchouli_rope_base', type=float, default=10000.0, help='Base for Patchouli rotary embedding frequencies')
 parser.add_argument('--patchouli_use_flash_attn', type=int, default=0, help='Enable FlashAttention kernels inside Patchouli blocks')
 parser.add_argument('--patchouli_distribute_blocks', type=int, default=0, help='Distribute Patchouli blocks across multiple GPUs (experimental)')
-parser.add_argument('--ab_patchouli_cross_blocks', type=str, default=None,
-                    help='Comma-separated list of block indices where AB_Patchouli performs cross-branch fusion')
-parser.add_argument('--ab_patchouli_sdf_channel', type=int, default=3,
-                    help='Feature channel index containing the signed distance used to split surface/volume nodes for AB_Patchouli')
-parser.add_argument('--ab_patchouli_sdf_threshold', type=float, default=1e-6,
-                    help='Threshold applied to the SDF channel when splitting surface/volume nodes for AB_Patchouli')
-parser.add_argument('--ab_upt_root', type=str, default=None,
-                    help='Path to the AB-UPT source directory (defaults to ../anchored-branched-universal-physics-transformers/src relative to this repo)')
-parser.add_argument('--ab_upt_geometry_points', type=int, default=-1,
-                    help='Number of geometry points to sample for AB-UPT (set <=0 to keep all points)')
-parser.add_argument('--ab_upt_supernodes', type=int, default=512,
-                    help='Number of supernodes for the AB-UPT geometry encoder')
-parser.add_argument('--ab_upt_surface_anchors', type=int, default=-1,
-                    help='Number of surface anchors for AB-UPT (set <=0 to keep every surface point)')
-parser.add_argument('--ab_upt_volume_anchors', type=int, default=-1,
-                    help='Number of volume anchors for AB-UPT (set <=0 to keep every volume point)')
-parser.add_argument('--ab_upt_radius', type=float, default=0.25,
-                    help='Radius passed to AB-UPT supernode pooling')
-parser.add_argument('--ab_upt_position_scale', type=float, default=1000.0,
-                    help='Scale multiplier applied after normalizing positions before feeding them to AB-UPT')
 parser.add_argument('--erwin_c_hidden', type=str, default='64,128,256,512,1024',
                     help='Comma-separated hidden dimensions (encoder + bottleneck) for Erwin')
 parser.add_argument('--erwin_ball_sizes', type=str, default='64,64,64,64,64',

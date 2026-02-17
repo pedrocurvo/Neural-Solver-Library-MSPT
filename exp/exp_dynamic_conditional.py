@@ -24,7 +24,8 @@ class Exp_Dynamic_Conditional(Exp_Basic):
                     input_T = time[:, t:t + 1].reshape(x.shape[0], 1)
                     if self.args.fun_dim == 0:
                         fx = None
-                    im = self.model(x, fx=fx, T=input_T)
+                    with self._maybe_autocast():
+                        im = self.model(x, fx=fx, T=input_T)
                     if t == 0:
                         pred = im
                     else:
@@ -50,6 +51,8 @@ class Exp_Dynamic_Conditional(Exp_Basic):
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=self.args.epochs)
         elif self.args.scheduler == 'StepLR':
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=self.args.step_size, gamma=self.args.gamma)
+        else:
+            scheduler = None
         myloss = L2Loss(size_average=False)
 
         for ep in range(self.args.epochs):
@@ -63,19 +66,17 @@ class Exp_Dynamic_Conditional(Exp_Basic):
                     input_T = time[:, t:t + 1].reshape(x.shape[0], 1)
                     if self.args.fun_dim == 0:
                         fx = None
-                    im = self.model(x, fx=fx, T=input_T)
+                    with self._maybe_autocast():
+                        im = self.model(x, fx=fx, T=input_T)
                     loss = myloss(im.reshape(x.shape[0], -1), y.reshape(x.shape[0], -1))
                     train_l2_step += loss.item()
-                    optimizer.zero_grad()
-                    loss.backward()
+                    self._zero_grad(optimizer)
+                    self._backward(loss, optimizer)
+                    self._optimizer_step(optimizer)
 
-                    if self.args.max_grad_norm is not None:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
-                    optimizer.step()
-
-                if self.args.scheduler == 'OneCycleLR':
+                if self.args.scheduler == 'OneCycleLR' and scheduler is not None:
                     scheduler.step()
-            if self.args.scheduler == 'CosineAnnealingLR' or self.args.scheduler == 'StepLR':
+            if self.args.scheduler in ['CosineAnnealingLR', 'StepLR'] and scheduler is not None:
                 scheduler.step()
 
             train_loss_step = train_l2_step / (self.args.ntrain * float(self.args.T_out))
@@ -83,6 +84,11 @@ class Exp_Dynamic_Conditional(Exp_Basic):
 
             test_loss_full = self.vali()
             print("Epoch {} Test loss full : {:.5f}".format(ep, test_loss_full))
+
+            lr = optimizer.param_groups[0]['lr']
+            self.log_metrics({'train/loss_step': train_loss_step,
+                              'val/loss_full': test_loss_full,
+                              'train/lr': lr})
 
             if ep % 100 == 0:
                 if not os.path.exists('./checkpoints'):
@@ -112,7 +118,8 @@ class Exp_Dynamic_Conditional(Exp_Basic):
                     input_T = time[:, t:t + 1].reshape(x.shape[0], 1)  # B,step
                     if self.args.fun_dim == 0:
                         fx = None
-                    im = self.model(x, fx=fx, T=input_T)
+                    with self._maybe_autocast():
+                        im = self.model(x, fx=fx, T=input_T)
                     if t == 0:
                         pred = im
                     else:
@@ -128,3 +135,5 @@ class Exp_Dynamic_Conditional(Exp_Basic):
 
         rel_err /= self.args.ntest
         print("rel_err:{}".format(rel_err))
+        self.log_metrics({'test/rel_err': rel_err})
+        self.finish_logging()

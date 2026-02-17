@@ -7,6 +7,12 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+def _get_colorbar_limits(args):
+    vmin = getattr(args, 'vis_cbar_min', None)
+    vmax = getattr(args, 'vis_cbar_max', None)
+    return vmin, vmax
+
+
 def visual(x, y, out, args, id):
     if args.geotype == 'structured_2D':
         visual_structured_2d(x, y, out, args, id)
@@ -24,32 +30,25 @@ def visual(x, y, out, args, id):
 
 
 def visual_unstructured_2d(x, y, out, args, id):
-    plt.axis('off')
-    plt.scatter(x=x[0, :, 0].detach().cpu().numpy(), y=x[0, :, 1].detach().cpu().numpy(),
-                c=y[0, :].detach().cpu().numpy(), cmap='coolwarm')
-    plt.colorbar()
-    plt.savefig(
-        os.path.join('./results/' + args.save_name + '/',
-                     "gt_" + str(id) + ".pdf"), bbox_inches='tight', pad_inches=0)
-    plt.close()
+    vmin, vmax = _get_colorbar_limits(args)
 
-    plt.axis('off')
-    plt.scatter(x=x[0, :, 0].detach().cpu().numpy(), y=x[0, :, 1].detach().cpu().numpy(),
-                c=out[0, :].detach().cpu().numpy(), cmap='coolwarm')
-    plt.colorbar()
-    plt.savefig(
-        os.path.join('./results/' + args.save_name + '/',
-                     "pred_" + str(id) + ".pdf"), bbox_inches='tight', pad_inches=0)
-    plt.close()
+    def _scatter_and_save(values, name, use_fixed_limits=False):
+        plt.axis('off')
+        kwargs = {'cmap': 'coolwarm'}
+        if use_fixed_limits:
+            kwargs.update({'vmin': vmin, 'vmax': vmax})
+        plt.scatter(x=x[0, :, 0].detach().cpu().numpy(),
+                    y=x[0, :, 1].detach().cpu().numpy(),
+                    c=values, **kwargs)
+        plt.colorbar()
+        plt.savefig(os.path.join('./results/' + args.save_name + '/',
+                                 f"{name}_" + str(id) + ".pdf"),
+                    bbox_inches='tight', pad_inches=0)
+        plt.close()
 
-    plt.axis('off')
-    plt.scatter(x=x[0, :, 0].detach().cpu().numpy(), y=x[0, :, 1].detach().cpu().numpy(),
-                c=((y[0, :] - out[0, :])).detach().cpu().numpy(), cmap='coolwarm')
-    plt.colorbar()
-    plt.savefig(
-        os.path.join('./results/' + args.save_name + '/',
-                     "error_" + str(id) + ".pdf"), bbox_inches='tight', pad_inches=0)
-    plt.close()
+    _scatter_and_save(y[0, :].detach().cpu().numpy(), 'gt')
+    _scatter_and_save(out[0, :].detach().cpu().numpy(), 'pred')
+    _scatter_and_save(((y[0, :] - out[0, :])).detach().cpu().numpy(), 'error', use_fixed_limits=True)
 
 
 def visual_unstructured_3d(x, y, out, args, id):
@@ -139,6 +138,7 @@ def visual_structured_1d(x, y, out, args, id):
 
 
 def visual_structured_2d(x, y, out, args, id):
+    vmin, vmax = _get_colorbar_limits(args)
     if args.vis_bound is not None:
         space_x_min = args.vis_bound[0]
         space_x_max = args.vis_bound[1]
@@ -155,8 +155,7 @@ def visual_structured_2d(x, y, out, args, id):
                    x[0, :, 1].reshape(args.shapelist[0], args.shapelist[1])[space_x_min: space_x_max,
                    space_y_min: space_y_max].detach().cpu().numpy(),
                    np.zeros([args.shapelist[0], args.shapelist[1]])[space_x_min: space_x_max, space_y_min: space_y_max],
-                   shading='auto',
-                   edgecolors='black', linewidths=0.1)
+                   shading='auto', edgecolors='black', linewidths=0.1)
     plt.colorbar()
     plt.savefig(
         os.path.join('./results/' + args.save_name + '/',
@@ -197,7 +196,7 @@ def visual_structured_2d(x, y, out, args, id):
                    space_y_min: space_y_max].detach().cpu().numpy() - \
                    y[0, :, 0].reshape(args.shapelist[0], args.shapelist[1])[space_x_min: space_x_max,
                    space_y_min: space_y_max].detach().cpu().numpy(),
-                   shading='auto', cmap='coolwarm')
+                   shading='auto', cmap='coolwarm', vmin=vmin, vmax=vmax)
     plt.colorbar()
     plt.savefig(
         os.path.join('./results/' + args.save_name + '/',
@@ -206,6 +205,7 @@ def visual_structured_2d(x, y, out, args, id):
 
 
 def visual_structured_3d(x, y, out, args, id):
+    vmin, vmax = _get_colorbar_limits(args)
     # Determine visualization bounds
     if args.vis_bound is not None:
         space_x_min = args.vis_bound[0]
@@ -302,7 +302,8 @@ def visual_structured_3d(x, y, out, args, id):
     ax = fig.add_subplot(111, projection='3d')
     surf = ax.plot_surface(x_grid[:, :, slice_idx], y_grid[:, :, slice_idx], 
                           error[:, :, slice_idx], cmap='RdBu_r', 
-                          linewidth=0, antialiased=True, alpha=0.7)
+                          linewidth=0, antialiased=True, alpha=0.7,
+                          vmin=vmin, vmax=vmax)
     fig.colorbar(surf, shrink=0.5, aspect=5)
     ax.set_title('Prediction Error (Z-slice at index {})'.format(slice_idx))
     ax.set_xlabel('X')
@@ -316,49 +317,53 @@ def visual_structured_3d(x, y, out, args, id):
     # 5. Visualize all 6 faces of the 3D cube for prediction, ground truth, and error
     
     # Create figure layout for the 6 faces
-    def plot_cube_faces(data, title, filename):
+    def plot_cube_faces(data, title, filename, use_fixed_limits=False):
         fig = plt.figure(figsize=(15, 10))
         gs = plt.GridSpec(3, 3, figure=fig)
+
+        kwargs = {'cmap': 'coolwarm', 'origin': 'lower'}
+        if use_fixed_limits:
+            kwargs.update({'vmin': vmin, 'vmax': vmax})
         
         # Define the 6 faces
         # Front face (x=0)
         ax1 = fig.add_subplot(gs[0, 0])
-        im1 = ax1.imshow(data[0, :, :].T, cmap='coolwarm', origin='lower')
+        im1 = ax1.imshow(data[0, :, :].T, **kwargs)
         ax1.set_title('Front Face (x=0)')
         ax1.set_xlabel('Y')
         ax1.set_ylabel('Z')
         
         # Back face (x=max)
         ax2 = fig.add_subplot(gs[0, 1])
-        im2 = ax2.imshow(data[-1, :, :].T, cmap='coolwarm', origin='lower')
+        im2 = ax2.imshow(data[-1, :, :].T, **kwargs)
         ax2.set_title('Back Face (x=max)')
         ax2.set_xlabel('Y')
         ax2.set_ylabel('Z')
         
         # Left face (y=0)
         ax3 = fig.add_subplot(gs[0, 2])
-        im3 = ax3.imshow(data[:, 0, :], cmap='coolwarm', origin='lower')
+        im3 = ax3.imshow(data[:, 0, :], **kwargs)
         ax3.set_title('Left Face (y=0)')
         ax3.set_xlabel('X')
         ax3.set_ylabel('Z')
         
         # Right face (y=max)
         ax4 = fig.add_subplot(gs[1, 0])
-        im4 = ax4.imshow(data[:, -1, :], cmap='coolwarm', origin='lower')
+        im4 = ax4.imshow(data[:, -1, :], **kwargs)
         ax4.set_title('Right Face (y=max)')
         ax4.set_xlabel('X')
         ax4.set_ylabel('Z')
         
         # Bottom face (z=0)
         ax5 = fig.add_subplot(gs[1, 1])
-        im5 = ax5.imshow(data[:, :, 0], cmap='coolwarm', origin='lower')
+        im5 = ax5.imshow(data[:, :, 0], **kwargs)
         ax5.set_title('Bottom Face (z=0)')
         ax5.set_xlabel('X')
         ax5.set_ylabel('Y')
         
         # Top face (z=max)
         ax6 = fig.add_subplot(gs[1, 2])
-        im6 = ax6.imshow(data[:, :, -1], cmap='coolwarm', origin='lower')
+        im6 = ax6.imshow(data[:, :, -1], **kwargs)
         ax6.set_title('Top Face (z=max)')
         ax6.set_xlabel('X')
         ax6.set_ylabel('Y')
@@ -368,19 +373,19 @@ def visual_structured_3d(x, y, out, args, id):
         z_mid = data.shape[2] // 2
 
         ax7 = fig.add_subplot(gs[2, 0])
-        im7 = ax7.imshow(data[x_mid, :, :].T, cmap='coolwarm', origin='lower')
+        im7 = ax7.imshow(data[x_mid, :, :].T, **kwargs)
         ax7.set_title(f'X-Center Section (x={x_mid})')
         ax7.set_xlabel('Y')
         ax7.set_ylabel('Z')
 
         ax8 = fig.add_subplot(gs[2, 1])
-        im8 = ax8.imshow(data[:, y_mid, :].T, cmap='coolwarm', origin='lower')
+        im8 = ax8.imshow(data[:, y_mid, :].T, **kwargs)
         ax8.set_title(f'Y-Center Section (y={y_mid})')
         ax8.set_xlabel('X')
         ax8.set_ylabel('Z')
 
         ax9 = fig.add_subplot(gs[2, 2])
-        im9 = ax9.imshow(data[:, :, z_mid], cmap='coolwarm', origin='lower')
+        im9 = ax9.imshow(data[:, :, z_mid], **kwargs)
         ax9.set_title(f'Z-Center Section (z={z_mid})')
         ax9.set_xlabel('X')
         ax9.set_ylabel('Y')
@@ -400,4 +405,4 @@ def visual_structured_3d(x, y, out, args, id):
     # Plot the 6 faces and 3 orthogonal center sections for prediction, ground truth, and error
     plot_cube_faces(pred, 'Model Prediction - Faces & Center Sections', 'pred_faces')
     plot_cube_faces(gt, 'Ground Truth - Faces & Center Sections', 'gt_faces')
-    plot_cube_faces(error, 'Prediction Error - Faces & Center Sections', 'error_faces')
+    plot_cube_faces(error, 'Prediction Error - Faces & Center Sections', 'error_faces', use_fixed_limits=True)
