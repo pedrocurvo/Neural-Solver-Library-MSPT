@@ -17,11 +17,19 @@ parser.add_argument('--max_grad_norm', type=float, default=None, help='make the 
 parser.add_argument('--derivloss', type=bool, default=False, help='adopt the spatial derivate as regularization')
 parser.add_argument('--teacher_forcing', type=int, default=1,
                     help='adopt teacher forcing in autoregressive to speed up convergence')
-parser.add_argument('--optimizer', type=str, default='AdamW', help='optimizer type, select from Adam, AdamW')
+parser.add_argument('--optimizer', type=str, default='AdamW', help='optimizer type, select from Adam, AdamW, Lion')
+parser.add_argument('--amp', type=int, default=0,
+                    help='Enable torch.cuda.amp automatic mixed precision training')
 parser.add_argument('--scheduler', type=str, default='OneCycleLR',
-                    help='learning rate scheduler, select from [OneCycleLR, CosineAnnealingLR, StepLR]')
+                    help='learning rate scheduler, select from [OneCycleLR, CosineAnnealingLR, StepLR, WarmupCosine]')
 parser.add_argument('--step_size', type=int, default=100, help='step size for StepLR scheduler')
 parser.add_argument('--gamma', type=float, default=0.5, help='decay parameter for StepLR scheduler')
+parser.add_argument('--min_lr', type=float, default=0.0,
+                    help='Minimum learning rate for WarmupCosine scheduler')
+parser.add_argument('--warmup_fraction', type=float, default=0.0,
+                    help='Fraction of total steps used for linear warmup in WarmupCosine scheduler')
+parser.add_argument('--lion_beta1', type=float, default=0.9, help='Beta1 parameter for Lion optimizer')
+parser.add_argument('--lion_beta2', type=float, default=0.99, help='Beta2 parameter for Lion optimizer')
 
 ## data
 parser.add_argument('--data_path', type=str, default='/data/fno/', help='data folder')
@@ -67,12 +75,80 @@ parser.add_argument('--modes', type=int, default=12, help='number of basis funct
 parser.add_argument('--psi_dim', type=int, default=8, help='number of psi_dim for ONO')
 parser.add_argument('--attn_type', type=str, default='nystrom',help='attn_type for ONO, select from nystrom, linear, selfAttention')
 parser.add_argument('--mwt_k', type=int, default=3,help='number of wavelet basis functions for MWT')
+parser.add_argument('--patchouli_V', type=int, default=32, help='number of chunks for Patchouli attention')
+parser.add_argument('--patchouli_Q', type=int, default=1, help='number of pooled tokens per chunk for Patchouli')
+parser.add_argument('--patchouli_pool', type=str, default='mean', choices=['mean', 'max', 'linear'],
+                    help='pooling strategy for Patchouli global tokens')
+parser.add_argument('--patchouli_chunking', type=str, default='linear', choices=['linear', 'balltree'],
+                    help='Patchouli point chunking strategy')
+parser.add_argument('--patchouli_use_rope', type=int, default=0, help='Enable rotary positional embeddings inside Patchouli attention')
+parser.add_argument('--patchouli_rope_base', type=float, default=10000.0, help='Base for Patchouli rotary embedding frequencies')
+parser.add_argument('--patchouli_use_flash_attn', type=int, default=0, help='Enable FlashAttention kernels inside Patchouli blocks')
+parser.add_argument('--patchouli_distribute_blocks', type=int, default=0, help='Distribute Patchouli blocks across multiple GPUs (experimental)')
+parser.add_argument('--ab_patchouli_cross_blocks', type=str, default=None,
+                    help='Comma-separated list of block indices where AB_Patchouli performs cross-branch fusion')
+parser.add_argument('--ab_patchouli_sdf_channel', type=int, default=3,
+                    help='Feature channel index containing the signed distance used to split surface/volume nodes for AB_Patchouli')
+parser.add_argument('--ab_patchouli_sdf_threshold', type=float, default=1e-6,
+                    help='Threshold applied to the SDF channel when splitting surface/volume nodes for AB_Patchouli')
+parser.add_argument('--ab_upt_root', type=str, default=None,
+                    help='Path to the AB-UPT source directory (defaults to ../anchored-branched-universal-physics-transformers/src relative to this repo)')
+parser.add_argument('--ab_upt_geometry_points', type=int, default=-1,
+                    help='Number of geometry points to sample for AB-UPT (set <=0 to keep all points)')
+parser.add_argument('--ab_upt_supernodes', type=int, default=512,
+                    help='Number of supernodes for the AB-UPT geometry encoder')
+parser.add_argument('--ab_upt_surface_anchors', type=int, default=-1,
+                    help='Number of surface anchors for AB-UPT (set <=0 to keep every surface point)')
+parser.add_argument('--ab_upt_volume_anchors', type=int, default=-1,
+                    help='Number of volume anchors for AB-UPT (set <=0 to keep every volume point)')
+parser.add_argument('--ab_upt_radius', type=float, default=0.25,
+                    help='Radius passed to AB-UPT supernode pooling')
+parser.add_argument('--ab_upt_position_scale', type=float, default=1000.0,
+                    help='Scale multiplier applied after normalizing positions before feeding them to AB-UPT')
+parser.add_argument('--erwin_c_hidden', type=str, default='64,128,256,512,1024',
+                    help='Comma-separated hidden dimensions (encoder + bottleneck) for Erwin')
+parser.add_argument('--erwin_ball_sizes', type=str, default='64,64,64,64,64',
+                    help='Comma-separated ball sizes per Erwin encoder layer (including bottleneck)')
+parser.add_argument('--erwin_strides', type=str, default='2,2,2,1',
+                    help='Comma-separated pooling strides between Erwin encoder layers')
+parser.add_argument('--erwin_enc_depths', type=str, default='2,2,6,2,2',
+                    help='Comma-separated numbers of Erwin blocks per encoder (last entry is bottleneck depth)')
+parser.add_argument('--erwin_dec_depths', type=str, default='2,2,2,2',
+                    help='Comma-separated numbers of Erwin blocks per decoder layer')
+parser.add_argument('--erwin_enc_heads', type=str, default='2,4,8,16,16',
+                    help='Comma-separated list of attention heads per Erwin encoder layer (defaults to n_heads)')
+parser.add_argument('--erwin_dec_heads', type=str, default='2,4,8,8',
+                    help='Comma-separated list of attention heads per Erwin decoder layer (defaults to n_heads)')
+parser.add_argument('--erwin_rotate', type=float, default=0.0,
+                    help='Rotation angle (degrees) used when building Erwin ball trees (0 disables rotations)')
+parser.add_argument('--erwin_decode', type=int, default=1,
+                    help='Whether to run the Erwin decoder (1) or return latent features only (0)')
+parser.add_argument('--erwin_mlp_ratio', type=int, default=4,
+                    help='SwiGLU expansion for Erwin blocks (overrides global mlp_ratio if provided)')
+parser.add_argument('--erwin_mp_steps', type=int, default=3,
+                    help='Number of MPNN steps used in Erwin embedding')
+parser.add_argument('--erwin_concat_pos', type=int, default=1,
+                    help='Concatenate xyz coordinates to node features before feeding Erwin (1=yes, 0=no)')
+parser.add_argument('--torch_compile', type=int, default=0, help='Enable torch.compile for the selected model')
+parser.add_argument('--torch_compile_mode', type=str, default='default', help='torch.compile mode to use when enabled')
 
 ## eval
 parser.add_argument('--eval', type=int, default=0, help='evaluation or not')
 parser.add_argument('--save_name', type=str, default='Transolver_check', help='name of folders')
 parser.add_argument('--vis_num', type=int, default=10, help='number of visualization cases')
 parser.add_argument('--vis_bound', type=int, nargs='+', default=None, help='size of region for visualization, in list')
+parser.add_argument('--vis_cbar_min', type=float, default=None,
+                    help='Fix the minimum value for visualization color bars')
+parser.add_argument('--vis_cbar_max', type=float, default=None,
+                    help='Fix the maximum value for visualization color bars')
+parser.add_argument('--export_surface_ply', type=str, default=None,
+                    help='Directory or file path to export car-design surface predictions as PLY (steady_design only)')
+parser.add_argument('--export_surface_limit', type=int, default=1,
+                    help='Maximum number of validation samples to export as surface PLYs')
+parser.add_argument('--export_surface_sample', type=str, default=None,
+                    help='Specific validation sample identifier (e.g. param0/xxxx) to export; overrides limit filtering')
+parser.add_argument('--export_surface_include_error', type=int, default=1,
+                    help='Whether to include a prediction-error column when exporting surface PLYs')
 
 args = parser.parse_args()
 eval = args.eval
