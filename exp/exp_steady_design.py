@@ -25,12 +25,8 @@ except ImportError:
 class Exp_Steady_Design(Exp_Basic):
     def __init__(self, args):
         super(Exp_Steady_Design, self).__init__(args)
-        self._abupt_mode = getattr(self.args, 'model', '') == 'AB_UPT'
-        self._abupt_loss_fn = nn.MSELoss()
 
     def vali(self):
-        if self._abupt_mode:
-            return self._abupt_vali()
         myloss = nn.MSELoss(reduction='none')
         self.model.eval()
         rel_err = 0.0
@@ -107,23 +103,8 @@ class Exp_Steady_Design(Exp_Basic):
             self.model.train()
             train_loss = 0
             index = 0
-            if self._abupt_mode:
-                iter_loader = self.train_loader
-            else:
-                iter_loader = self.train_loader
+            iter_loader = self.train_loader
             for batch in iter_loader:
-                if self._abupt_mode:
-                    batch = self._move_abupt_batch_to_device(batch)
-                    self._zero_grad(optimizer)
-                    with self._maybe_autocast():
-                        outputs = self.model(batch)
-                        loss = self._abupt_loss(outputs, batch)
-                    train_loss += loss.item()
-                    index += 1
-                    self._backward(loss, optimizer)
-                    self._optimizer_step(optimizer)
-                    continue
-
                 pos, fx, y, surf, geo = batch
                 x, fx, y, geo = pos.cuda(), fx.cuda(), y.cuda(), geo.cuda()
                 if self.args.fun_dim == 0:
@@ -167,8 +148,6 @@ class Exp_Steady_Design(Exp_Basic):
         torch.save(self.model.state_dict(), os.path.join('./checkpoints', self.args.save_name + '.pt'))
 
     def test(self):
-        if self._abupt_mode:
-            return self._abupt_test()
         self.model.load_state_dict(torch.load("./checkpoints/" + self.args.save_name + ".pt"))
         self.model.eval()
         if not os.path.exists('./results/' + self.args.save_name + '/'):
